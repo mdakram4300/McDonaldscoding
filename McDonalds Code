@@ -1,0 +1,78 @@
+import pandas as pd
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score
+from flexclust import StepFlexclust, BootFlexclust, SLXclust
+from flexmix import Flexmix, FLXMCmvbinary
+from scipy.cluster.hierarchy import linkage, dendrogram
+from matplotlib import pyplot as plt
+from partykit import ctree
+
+#Load the dataset
+mcdonalds = pd.read_csv("mcdonalds.csv")
+
+#Remove unnecessary columns
+mcdonalds = mcdonalds.iloc[:, 1:]
+
+#Convert "Yes" to 1 and "No" to 0
+mcdonalds.iloc[:, 1:12] = (mcdonalds.iloc[:, 1:12] == "Yes").astype(int)
+
+#Calculate column means
+MD_x = mcdonalds.iloc[:, 1:12]
+round(MD_x.mean(), 2)
+
+#Principal component analysis
+MD_pca = PCA().fit(MD_x)
+print(MD_pca.summary())
+print(MD_pca)
+
+#K-means clustering
+k_range = range(2, 9)
+MD_km28 = StepFlexclust(MD_x, k_range, nrep=10, verbose=False)
+MD_km28 = MD_km28.relabel()
+
+#Bootstrapping
+MD_b28 = BootFlexclust(MD_x, k_range, nrep=10, nboot=100)
+plt.plot(MD_b28)
+plt.xlabel("number of segments")
+plt.ylabel("adjusted Rand index")
+
+#Select the optimal number of clusters
+MD_k4 = MD_km28["4"]
+MD_r4 = SLXclust(MD_x, MD_k4)
+plt.plot(MD_r4)
+plt.ylim([0, 1])
+plt.xlabel("segment number")
+plt.ylabel("segment stability")
+
+#Mixture model clustering
+MD_m28 = StepFlexmix("MD_x ~ 1", data=mcdonalds, k=k_range, nrep=10, model=FLXMCmvbinary(), verbose=False)
+print(MD_m28)
+plt.plot(MD_m28)
+
+#Refit the model
+MD_reg2 = Flexmix(f, data=mcdonalds, k=2, nrep=10, verbose=False)
+MD_ref2 = MD_reg2.refit()
+print(MD_ref2.summary())
+plt.plot(MD_ref2, significance=True)
+
+#Hierarchical clustering
+MD_vclust = linkage(MD_x.T, method="complete")
+plt.barh(range(1, 13), MD_k4, color="grey")
+plt.yticks(range(1, 13), MD_x.columns[1:], rotation=0)
+
+#Visualize clustering results
+plt.scatter(MD_pca.components_[0], MD_pca.components_[1], c=k4, cmap="Set1", alpha=0.5)
+plt.xlabel("principal component 1")
+plt.ylabel("principal component 2")
+proj_axes = MD_pca.components_[:2].T * np.sqrt(MD_pca.explained_variance_[:2])
+for i, txt in enumerate(MD_x.columns[1:]):
+plt.annotate(txt, (proj_axes[i, 0], proj_axes[i, 1]), ha="center", va="center")
+
+#Mosaic plots
+plt.rc("font", size=14)
+k4 = KMeans(n_clusters=4, random_state=1234).fit(MD_x).labels_
+mosaic = pd.DataFrame({"Like.n": mcdonalds.Like.n, "Gender": mcdonalds.Gender, "k4": k4})
+mosaic
+
